@@ -1,4 +1,4 @@
-// src/core/SuperIntelligentCoordinator-ShowAllData.js - FIXED TO SHOW ALL DATA
+// src/core/SuperIntelligentCoordinator-WithMemory.js
 import SuperIntelligentConversationalAI from '../ai/SuperIntelligentConversationalAI.js';
 import SuperIntelligentDatabaseQueryAI from '../ai/SuperIntelligentDatabaseQueryAI.js';
 import FormatterSummarizerAI from '../ai/FormatterSummarizerAI.js';
@@ -13,7 +13,7 @@ class SuperIntelligentCoordinator {
         this.maxRetries = 3;
         this.debugMode = process.env.DEBUG_ENABLED === 'true';
         
-        console.log('🧠 SuperIntelligent Coordinator initialized - SHOWS ALL DATA');
+        console.log('🧠 SuperIntelligent Coordinator initialized - WITH MEMORY CONTINUATION SUPPORT');
     }
 
     async processUserMessage(message, sessionId, debugLog = console.log) {
@@ -52,6 +52,16 @@ class SuperIntelligentCoordinator {
                     response: decision.conversationResponse || this.generateExplanationResponse(),
                     success: true
                 };
+                
+            } else if (decision.action === 'continue_query') {
+                // *** NEW: Handle continuation requests ***
+                debugLog("🔄 Processing continuation request");
+                processingResults.data = await this.executeContinuation(
+                    decision,
+                    message,
+                    conversationContext,
+                    debugLog
+                );
                 
             } else if (decision.action === 'query' && decision.needsData) {
                 // Execute super intelligent database query
@@ -111,6 +121,108 @@ class SuperIntelligentCoordinator {
         }
     }
 
+    // *** NEW METHOD: Handle continuation requests ***
+    async executeContinuation(decision, userMessage, conversationContext, debugLog) {
+        debugLog("🔄 Executing continuation request");
+        
+        const continuationData = decision.continuationData;
+        const lastResults = continuationData.lastResults || [];
+        const currentOffset = continuationData.offset || 20;
+        
+        if (lastResults.length === 0) {
+            return {
+                type: 'error',
+                response: "I don't have any previous results to continue from. Please ask me to find some data first.",
+                success: false,
+                intelligenceLevel: 'Super'
+            };
+        }
+        
+        // Determine how many more results to show
+        const pageSize = 20; // Show 20 more results at a time
+        const remainingResults = lastResults.slice(currentOffset);
+        const nextBatch = remainingResults.slice(0, pageSize);
+        
+        if (nextBatch.length === 0) {
+            return {
+                type: 'continuation_results',
+                response: `You've seen all ${lastResults.length} results! There are no more tickets to display.`,
+                resultCount: 0,
+                success: true,
+                intelligenceLevel: 'Super'
+            };
+        }
+        
+        // Create continuation response showing more results
+        const continuationResponse = this.createContinuationResponse(
+            nextBatch,
+            currentOffset,
+            lastResults.length,
+            userMessage,
+            debugLog
+        );
+        
+        // Update the conversation context with new offset
+        conversationContext.lastOffset = currentOffset + nextBatch.length;
+        
+        return continuationResponse;
+    }
+
+    createContinuationResponse(results, startIndex, totalResults, userMessage, debugLog) {
+        debugLog(`📊 Creating continuation response for ${results.length} results (${startIndex + 1}-${startIndex + results.length} of ${totalResults})`);
+        
+        const endIndex = startIndex + results.length;
+        let response = `**Continuing results (${startIndex + 1}-${endIndex} of ${totalResults} total):**\n\n`;
+        
+        // Check if this was originally a ticket ID request
+        const wantsTicketIds = userMessage.toLowerCase().includes('ticketid') || 
+                             userMessage.toLowerCase().includes('ticket id') ||
+                             userMessage.toLowerCase().includes('list') && userMessage.toLowerCase().includes('id');
+        
+        if (wantsTicketIds) {
+            // For ticket ID requests, show only the IDs
+            const ticketIds = results.map(r => r.data?.ticket?.TicketID).filter(id => id);
+            
+            if (ticketIds.length > 0) {
+                response = `**More Ticket IDs (${startIndex + 1}-${endIndex} of ${totalResults} total):**\n\n${ticketIds.join(', ')}\n\n`;
+            }
+        } else {
+            // For general ticket lists, show formatted results
+            results.forEach((r, i) => {
+                const ticket = r.data?.ticket;
+                if (ticket) {
+                    response += `${startIndex + i + 1}. **Ticket ${ticket.TicketID}** (${ticket.TicketNumber || 'No Number'})\n`;
+                    response += `   📝 ${ticket.Title || 'No Title'}\n`;
+                    response += `   📧 ${ticket.CustomerID || 'No Customer'}\n`;
+                    response += `   ✅ ${ticket.State || 'Unknown Status'}\n\n`;
+                }
+            });
+        }
+        
+        // Add continuation prompt
+        const remaining = totalResults - endIndex;
+        if (remaining > 0) {
+            response += `**${remaining} more results available.**\nSay "see more" to continue, or ask me to filter or search the results.`;
+        } else {
+            response += `**That's all ${totalResults} results!**\nWould you like me to help you search or filter these tickets?`;
+        }
+        
+        return {
+            type: 'continuation_results',
+            response: response,
+            resultCount: results.length,
+            success: true,
+            intelligenceLevel: 'Super',
+            pagination: {
+                currentStart: startIndex + 1,
+                currentEnd: endIndex,
+                total: totalResults,
+                remaining: remaining,
+                hasMore: remaining > 0
+            }
+        };
+    }
+
     async executeSuperIntelligentQuery(queryInstruction, userMessage, conversationContext, debugLog, retryCount = 0) {
         if (this.debugMode) debugLog(`🔍 Executing query (attempt ${retryCount + 1}): ${queryInstruction}`);
         
@@ -124,14 +236,14 @@ class SuperIntelligentCoordinator {
             );
             
             if (queryResult.success) {
-                // *** IMPORTANT: Create response directly here instead of using FormatterSummarizerAI ***
-                // This ensures we show ALL data without truncation
+                // Create response directly here instead of using FormatterSummarizerAI
                 const directResponse = this.createDirectQueryResponse(queryResult, userMessage, debugLog);
                 
                 if (directResponse) {
-                    // Store results for potential follow-up queries
+                    // *** IMPORTANT: Store results AND reset offset for new queries ***
                     conversationContext.lastResults = queryResult.results;
                     conversationContext.lastQuery = queryResult.query;
+                    conversationContext.lastOffset = 0; // Reset offset for new query
                     
                     return directResponse;
                 } else {
@@ -159,7 +271,7 @@ class SuperIntelligentCoordinator {
         }
     }
 
-    // *** NEW METHOD: Create direct response showing ALL data ***
+    // *** ENHANCED: Show limited results with continuation option ***
     createDirectQueryResponse(queryResult, userMessage, debugLog) {
         const results = queryResult.results || [];
         const resultCount = queryResult.resultCount || results.length;
@@ -185,12 +297,23 @@ class SuperIntelligentCoordinator {
             const ticketIds = results.map(r => r.data?.ticket?.TicketID).filter(id => id);
             
             if (ticketIds.length > 0) {
-                // *** SHOW ALL TICKET IDs - NO TRUNCATION ***
-                const allTicketIds = ticketIds.join(', ');
+                // Show limited results with continuation option
+                const displayLimit = 50; // Show more ticket IDs since they're compact
+                const visibleIds = ticketIds.slice(0, displayLimit);
+                const hasMore = ticketIds.length > displayLimit;
+                
+                let response = `**All Ticket IDs (${ticketIds.length} total):**\n\n${visibleIds.join(', ')}`;
+                
+                if (hasMore) {
+                    const remaining = ticketIds.length - displayLimit;
+                    response += `\n\n**Showing first ${displayLimit} of ${ticketIds.length} total ticket IDs.**\n${remaining} more available - say "see more" to continue.`;
+                } else {
+                    response += `\n\nWould you like details about any specific tickets?`;
+                }
                 
                 return {
                     type: 'query_results',
-                    response: `**All Ticket IDs (${ticketIds.length} total):**\n\n${allTicketIds}\n\nWould you like details about any specific tickets?`,
+                    response: response,
                     resultCount: ticketIds.length,
                     query: queryResult.query,
                     success: true,
@@ -200,10 +323,13 @@ class SuperIntelligentCoordinator {
         }
         
         // For other types of queries, show first 20 results with option for more
+        const displayLimit = 20;
+        const visibleResults = results.slice(0, displayLimit);
+        const hasMore = results.length > displayLimit;
+        
         let response = `**Found ${resultCount} result(s):**\n\n`;
         
-        const displayLimit = 20;
-        results.slice(0, displayLimit).forEach((r, i) => {
+        visibleResults.forEach((r, i) => {
             const ticket = r.data?.ticket;
             if (ticket) {
                 response += `${i + 1}. **Ticket ${ticket.TicketID}** (${ticket.TicketNumber || 'No Number'})\n`;
@@ -213,8 +339,9 @@ class SuperIntelligentCoordinator {
             }
         });
         
-        if (resultCount > displayLimit) {
-            response += `\n**Showing first ${displayLimit} of ${resultCount} total results.**\nWould you like to see more or filter the results?`;
+        if (hasMore) {
+            const remaining = resultCount - displayLimit;
+            response += `**Showing first ${displayLimit} of ${resultCount} total results.**\n${remaining} more available - say "see more" to continue.`;
         }
         
         return {
@@ -304,7 +431,7 @@ class SuperIntelligentCoordinator {
                               wasCorrected ? "After intelligent correction, here are the " : 
                               "Here are all the ";
                               
-                // *** SHOW ALL TICKET IDs - NO TRUNCATION ***
+                // Show ALL ticket IDs - NO TRUNCATION
                 const allTicketIds = ticketIds.join(', ');
                               
                 return {
@@ -452,6 +579,7 @@ I have **complete mastery** of your database and can handle ANY request:
 • **Dynamic Responses** - Adapt to exactly what you want
 • **Context Awareness** - Remember our conversation
 • **Error Recovery** - Fix issues automatically
+• **Continuation Support** - Say "see more" to continue results
 
 Just ask me anything naturally! I'll handle it with super intelligence.`;
     }
@@ -486,6 +614,7 @@ Just ask me anything naturally! I'll handle it with super intelligence.`;
             if (processingResults.data?.results) {
                 context.lastResults = processingResults.data.results;
                 context.lastQuery = processingResults.data.query;
+                context.lastOffset = 0; // Reset for new queries
             }
             
             // Update context for next intelligent interaction
