@@ -179,100 +179,81 @@ class FormatterSummarizerAI {
     async createIntelligentSummary(summaryInstruction, tickets, userMessage, conversationContext, debugLog = () => {}) {
         debugLog("📋 FormatterSummarizerAI creating intelligent summary");
         
-        const summaryPrompt = ChatPromptTemplate.fromTemplate(`
-        You are an expert at creating comprehensive, intelligent summaries of support tickets and conversations.
-        
-        USER'S REQUEST: "{userMessage}"
-        SUMMARY INSTRUCTION: "{summaryInstruction}"
-        
-        TICKET DATA TO SUMMARIZE:
-        {ticketData}
-        
-        CONVERSATION CONTEXT: {conversationContext}
-        
-        DATA STRUCTURE KNOWLEDGE:
-        {structureKnowledge}
-        
-        CREATE AN INTELLIGENT SUMMARY BASED ON WHAT USER WANTS:
-        
-        SUMMARY TYPES:
-        
-        1. SINGLE TICKET SUMMARY:
-        - Issue overview and context
-        - Customer and ticket details
-        - Complete conversation flow (who said what, when)
-        - Current status and resolution
-        - Key decisions and actions taken
-        - Timeline of events
-        - Attachments mentioned
-        - Next steps if still open
-        
-        2. MULTIPLE TICKETS SUMMARY:
-        - Overall patterns and trends
-        - Common issues identified
-        - Customer satisfaction indicators
-        - Resolution times and efficiency
-        - Agent performance insights
-        - Priority distribution
-        - Status breakdown
-        
-        3. CUSTOMER SUMMARY:
-        - Customer interaction history
-        - Common issues for this customer
-        - Resolution patterns
-        - Communication preferences
-        - Overall relationship health
-        
-        4. TOPIC/KEYWORD SUMMARY:
-        - Thematic analysis of issues
-        - Frequency of specific problems
-        - Resolution strategies that work
-        - Time-to-resolution trends
-        
-        SUMMARY QUALITY STANDARDS:
-        
-        ✅ COMPREHENSIVE: Cover all important aspects
-        ✅ NARRATIVE: Tell the story, don't just list facts
-        ✅ ACTIONABLE: Include insights and recommendations
-        ✅ STRUCTURED: Use clear sections and headers
-        ✅ CONTEXTUAL: Relate to user's specific request
-        ✅ PROFESSIONAL: Business-appropriate tone
-        ✅ ACCESSIBLE: Easy to understand and scan
-        
-        FORMATTING GUIDELINES:
-        - Use markdown headers (##, ###) for structure
-        - Use bullet points for key facts
-        - Use **bold** for important information
-        - Include dates and times in context
-        - Use clear section breaks
-        - End with summary of key takeaways
-        
-        EXAMPLE SINGLE TICKET SUMMARY STRUCTURE:
-        ## Summary of Ticket #13001952
-        
-        ### Issue Overview
-        [Clear description of the problem and context]
-        
-        ### Customer & Ticket Details
-        - **Customer**: john@email.com
-        - **Priority**: High
-        - **Created**: January 6, 2025
-        - **Status**: Open
-        
-        ### Conversation Timeline
-        [Chronological flow of the conversation]
-        
-        ### Key Decisions & Actions
-        [Important decisions made and actions taken]
-        
-        ### Current Status
-        [Where things stand now]
-        
-        ### Recommendations
-        [Next steps or recommendations]
-        
-        Create the intelligent summary:
-        `);
+const summaryPrompt = ChatPromptTemplate.fromTemplate(`
+You are an expert at creating comprehensive, intelligent summaries of support tickets and conversations.
+
+USER'S REQUEST: "{userMessage}"
+SUMMARY INSTRUCTION: "{summaryInstruction}"
+
+TICKET DATA TO SUMMARIZE:
+{ticketData}
+
+CONVERSATION CONTEXT: {conversationContext}
+
+DATA STRUCTURE KNOWLEDGE:
+{structureKnowledge}
+
+IMPORTANT: 
+- Create the summary strictly based on provided ticket data.
+- Do NOT include any example tickets, placeholder information, or fabricated content.
+- Avoid hallucinating details not found in the data.
+- Match the user's request clearly and accurately.
+
+SUMMARY TYPES:
+
+1. SINGLE TICKET SUMMARY:
+- Issue overview and context
+- Customer and ticket details
+- Complete conversation flow (who said what, when)
+- Current status and resolution
+- Key decisions and actions taken
+- Timeline of events
+- Attachments mentioned
+- Next steps if still open
+
+2. MULTIPLE TICKETS SUMMARY:
+- Overall patterns and trends
+- Common issues identified
+- Customer satisfaction indicators
+- Resolution times and efficiency
+- Agent performance insights
+- Priority distribution
+- Status breakdown
+
+3. CUSTOMER SUMMARY:
+- Customer interaction history
+- Common issues for this customer
+- Resolution patterns
+- Communication preferences
+- Overall relationship health
+
+4. TOPIC/KEYWORD SUMMARY:
+- Thematic analysis of issues
+- Frequency of specific problems
+- Resolution strategies that work
+- Time-to-resolution trends
+
+SUMMARY QUALITY STANDARDS:
+
+✅ COMPREHENSIVE: Cover all important aspects
+✅ NARRATIVE: Tell the story, don't just list facts
+✅ ACTIONABLE: Include insights and recommendations
+✅ STRUCTURED: Use clear sections and headers
+✅ CONTEXTUAL: Relate to user's specific request
+✅ PROFESSIONAL: Business-appropriate tone
+✅ ACCESSIBLE: Easy to understand and scan
+
+FORMATTING GUIDELINES:
+- Use markdown headers (##, ###) for structure
+- Use bullet points for key facts
+- Use **bold** for important information
+- Include dates and times in context
+- Use clear section breaks
+- End with summary of key takeaways
+
+Create the intelligent summary:
+`);
+
         
         try {
             const ticketData = this.prepareTicketDataForSummary(tickets);

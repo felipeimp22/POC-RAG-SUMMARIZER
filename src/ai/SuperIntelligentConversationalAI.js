@@ -131,21 +131,26 @@ class SuperIntelligentConversationalAI {
                 action: "chat",
                 reasoning: "Simple greeting detected",
                 needsData: false,
-                conversationResponse: "Hello! I'm your super intelligent ticket database assistant. I can help you find tickets, search by customer, analyze data, or explain the system. What would you like to do?",
+                conversationResponse: "Hello! I'm your ticket database assistant. I can help you find tickets, search by customer, analyze data, or explain the system. What would you like to do?",
                 confidence: 0.95
             };
         }
         
         // *** PRIORITY 5: SUMMARIZATION PATTERNS ***
-        if (/\b(summarize|summary)\b.*\b(ticket|conversation)\b/i.test(lowerMessage)) {
+            if (/\b(summarize|summary)\b.*\b(ticket|conversation)\b/i.test(lowerMessage)) {
+        // Extract potential TicketID from message (e.g., "summarize the Ticket 13000030")
+            const ticketIdMatch = message.match(/\b(\d{7,})\b/); // Matches 7+ digit numbers like TicketIDs
+            const extractedTicketId = ticketIdMatch ? ticketIdMatch[1] : null;
+
             return {
                 action: "summarize",
                 reasoning: "Summarization request detected",
                 needsData: true,
                 summaryInstruction: `Summarize based on request: ${message}`,
+                ticketId: extractedTicketId,  // NEW: Attach extracted TicketID for precise lookup
                 confidence: 0.9
             };
-        }
+            }
         
         // *** PRIORITY 6: DATA REQUEST PATTERNS ***
         const dataRequestPatterns = [
@@ -314,11 +319,11 @@ CustomerID connects tickets to real people! 👥`
         }
         
         // Default to conversation with context awareness
-        let contextualResponse = "I'm your super intelligent ticket database assistant. I can help you find tickets, search by customer, analyze data, or explain the system. What would you like to do?";
+        let contextualResponse = "I'm your ticket database assistant. I can help you find tickets, search by customer, analyze data, or explain the system. What would you like to do?";
         
         // Add context if we have previous results
         if (conversationContext.lastResults && conversationContext.lastResults.length > 0) {
-            contextualResponse = `I'm your super intelligent ticket database assistant. I can help you find tickets, search by customer, analyze data, or explain the system. 
+            contextualResponse = `I'm your ticket database assistant. I can help you find tickets, search by customer, analyze data, or explain the system. 
 
 I still have ${conversationContext.lastResults.length} results from your last query if you'd like to see more. What would you like to do?`;
         }
@@ -407,7 +412,7 @@ Your data is perfectly organized for comprehensive support management! 🚀`;
     }
 
     generateCapabilityExplanation() {
-        return `🤖 **I'm your Super Intelligent Ticket Database Assistant!**
+        return `🤖 **I'm your Ticket Database Assistant!**
 
 I can help you with:
 
