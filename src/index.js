@@ -1,75 +1,59 @@
+// src/index.js - SIMPLIFIED INTELLIGENT API
 import express from 'express';
 import cors from 'cors';
-import { createServer } from 'node:http';
-import { once } from 'node:events';
-import { prompt } from './ai.js';
-import authRoutes from './routes/authRoutes.js';
+import orchestrator from './core/AIOrchestrator.js';
 
-// Enable debugging
-const DEBUG_ENABLED = process.env.DEBUG_ENABLED === 'true' || true;
-const debugLog = (...args) => {
-    if (!DEBUG_ENABLED) return;
-    console.log(...args);
-};
-
-// Create Express app
 const app = express();
 
-// Middleware
-app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors());
 app.use(express.json());
 
-
-
-// Routes
-app.use('/auth', authRoutes);
-
-// AI chat endpoint
-app.post('/v1/chat', async (req, res) => {
+// Single intelligent endpoint
+app.post('/chat', async (req, res) => {
     try {
-        const data = req.body;
-        debugLog("🔹 Received AI Prompt:", data.prompt);
-
-        const aiResponse = await prompt(data.prompt, debugLog);
+        const { message, sessionId = 'default' } = req.body;
         
-        res.json(aiResponse.answer ? 
-            { message: aiResponse.answer, data: aiResponse.jsonResponse, chart: aiResponse.chartData } : 
-            { message: aiResponse.error }
+        if (!message) {
+            return res.status(400).json({ error: 'Message required' });
+        }
+
+        console.log(`📨 [${sessionId}] User: ${message}`);
+        
+        const response = await orchestrator.processConversation(
+            message, 
+            sessionId,
+            (...args) => console.log(...args)
         );
+        
+        console.log(`🤖 [${sessionId}] Bot: ${response.response?.substring(0, 100)}...`);
+        
+        res.json(response);
     } catch (error) {
-        console.error("❌ AI Backend Error:", error.stack);
-        res.status(500).json({ message: "Internal Server Error" });
+        console.error('❌ Error:', error);
+        res.status(500).json({ 
+            error: error.message,
+            response: "I encountered an error. Please try again."
+        });
     }
 });
 
-// Health check endpoint
+// Memory management endpoints
+app.delete('/chat/memory/:sessionId', (req, res) => {
+    orchestrator.clearMemory(req.params.sessionId);
+    res.json({ message: 'Memory cleared' });
+});
+
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
-});
-
-// Start server
-const PORT = process.env.PORT || 3002;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
-
-// Handle uncaught exceptions
-['uncaughtException', 'unhandledRejection'].forEach(event => {
-    process.on(event, (error) => {
-        console.error(`❌ ${event}:`, error);
-        process.exit(1);
+    res.json({ 
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        sessions: orchestrator.memory.size
     });
 });
 
-export default app;
-
-
-
-
-
-
-
+const PORT = process.env.PORT || 3002;
+app.listen(PORT, () => {
+    console.log(`🚀 Intelligent RAG System running on port ${PORT}`);
+    console.log(`💬 Chat endpoint: POST http://localhost:${PORT}/chat`);
+    console.log(`🧠 Using dynamic AI orchestration`);
+});
