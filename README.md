@@ -1,3 +1,7 @@
+POST SAMPLE {"message": "list all ticket id", "sessionId": 1}
+
+GET SAMPLE http://localhost:3002/summarize/13000030
+
 # Conversation AI Backend - Complete Setup Guide
 
 A Node.js backend that integrates **Ollama**, **MongoDB**, and **LangChain** to build an AI application for conversational analysis of customer support tickets.
